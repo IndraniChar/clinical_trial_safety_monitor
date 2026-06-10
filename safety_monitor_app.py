@@ -116,15 +116,16 @@ st.markdown('<p class="sub-header">Real-time pharmacovigilance platform for canc
 # ============================================
 @st.cache_data(ttl=3600)
 def load_data_from_snowflake():
-    """Load data from Snowflake"""
+    """Load data from Snowflake using Streamlit secrets"""
     try:
+        # Use st.secrets for cloud deployment
         conn = snowflake.connector.connect(
-            account=SNOWFLAKE_CONFIG["account"],
-            user=SNOWFLAKE_CONFIG["user"],
-            password=SNOWFLAKE_CONFIG["password"],
-            warehouse=SNOWFLAKE_CONFIG["warehouse"],
-            database=SNOWFLAKE_CONFIG["database"],
-            schema=SNOWFLAKE_CONFIG["schema_raw"]
+            account=st.secrets["if79614.ap-southeast-7.aws"],
+            user=st.secrets["IndraniChar"],
+            password=st.secrets["Fantameow@041101"],
+            warehouse=st.secrets["CLINICAL_WH"],
+            database=st.secrets["CLINICAL_TRIAL_DB"],
+            schema=st.secrets["RAW_AE_DATA"]
         )
         query = "SELECT * FROM ADVERSE_EVENTS ORDER BY REPORT_DATE DESC"
         df = pd.read_sql(query, conn)
