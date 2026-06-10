@@ -43,3 +43,5 @@ derby.log
 # OS
 .DS_Store
 Thumbs.db
+
+.streamlit/secrets.toml
