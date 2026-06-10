@@ -8,9 +8,10 @@ import requests
 import io
 from datetime import datetime
 import numpy as np
-from snowflake_config import SNOWFLAKE_CONFIG
 
-# Page config
+# ============================================
+# PAGE CONFIGURATION
+# ============================================
 st.set_page_config(
     page_title="Clinical Trial Safety Monitor",
     page_icon="🩺",
@@ -18,7 +19,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for professional look
+# ============================================
+# CUSTOM CSS FOR PROFESSIONAL LOOK
+# ============================================
 st.markdown("""
 <style>
     .main-header {
@@ -58,74 +61,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================
-# SIDEBAR - Navigation & Controls
+# SNOWFLAKE CONFIGURATION (WORKS LOCALLY + CLOUD)
 # ============================================
-with st.sidebar:
-    st.image("https://img.icons8.com/color/96/clinical-trial.png", width=80)
-    st.markdown("## 🩺 Safety Monitor")
-    st.markdown("---")
+def get_snowflake_config():
+    """Get Snowflake config - works with Streamlit secrets (cloud) OR local config file"""
     
-    # Data source selection
-    st.markdown("### 📊 Data Source")
-    data_source = st.radio(
-        "Select data source",
-        ["ClinicalTrials.gov API", "Upload Your Own Data", "Snowflake Database"],
-        help="Choose where to load adverse event data from"
-    )
+    # Try to use Streamlit secrets (for Streamlit Cloud deployment)
+    try:
+        config = {
+            "account": st.secrets["if79614.ap-southeast-7.aws"],
+            "user": st.secrets["IndraniChar"],
+            "password": st.secrets["Fantameow@041101"],
+            "warehouse": st.secrets["CLINICAL_WH"],
+            "database": st.secrets["CLINICAL_TRIAL_DB"],
+            "schema_raw": st.secrets["RAW_AE_DATA"]
+        }
+        return config
+    except:
+        pass
     
-    st.markdown("---")
-    
-    # Filters
-    st.markdown("### 🔍 Filters")
-    
-    # Trial selection (will be populated after data load)
-    trial_filter_placeholder = st.empty()
-    
-    # Seriousness filter
-    seriousness_filter = st.selectbox(
-        "Adverse Event Severity",
-        ["All Events", "Serious Only", "Non-Serious Only"]
-    )
-    
-    # Date range
-    st.markdown("### 📅 Date Range")
-    date_range = st.date_input(
-        "Select date range",
-        value=()
-    )
-    
-    st.markdown("---")
-    
-    # Report generation
-    st.markdown("### 📄 Export")
-    if st.button("📥 Generate Safety Report", use_container_width=True):
-        st.info("Report generation will be available after data load")
-    
-    st.markdown("---")
-    st.caption(f"🩺 Clinical Trial Safety Monitor v2.0\nLast updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    # Fallback to local config file (for local development)
+    try:
+        from snowflake_config import SNOWFLAKE_CONFIG
+        return SNOWFLAKE_CONFIG
+    except:
+        st.error("⚠️ No Snowflake configuration found. Please set up secrets (cloud) or snowflake_config.py (local).")
+        return None
 
 # ============================================
-# MAIN CONTENT AREA
-# ============================================
-
-st.markdown('<p class="main-header">🩺 Clinical Trial Adverse Event Safety Monitor</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Real-time pharmacovigilance platform for cancer clinical trials | Powered by ClinicalTrials.gov API + Snowflake</p>', unsafe_allow_html=True)
-
-# ============================================
-# DATA LOADING FUNCTION
+# DATA LOADING FUNCTIONS
 # ============================================
 @st.cache_data(ttl=3600)
 def load_data_from_snowflake():
-    """Load data from Snowflake using Streamlit secrets"""
+    """Load adverse event data from Snowflake"""
+    config = get_snowflake_config()
+    if not config:
+        return pd.DataFrame()
+    
     try:
-        # Use st.secrets for cloud deployment
         conn = snowflake.connector.connect(
-            account=st.secrets["if79614.ap-southeast-7.aws"],
-            user=st.secrets["IndraniChar"],
-            password=st.secrets["Fantameow@041101"],
-            warehouse=st.secrets["CLINICAL_WH"],
-            database=st.secrets["CLINICAL_TRIAL_DB"],
-            schema=st.secrets["RAW_AE_DATA"]
+            account=config["if79614.ap-southeast-7.aws"],
+            user=config["IndraniChar"],
+            password=config["Fantameow@041101"],
+            warehouse=config["CLINICAL_WH"],
+            database=config["CLINICAL_TRIAL_DB"],
+            schema=config["RAW_AE_DATA"]
         )
         query = "SELECT * FROM ADVERSE_EVENTS ORDER BY REPORT_DATE DESC"
         df = pd.read_sql(query, conn)
@@ -136,61 +116,79 @@ def load_data_from_snowflake():
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
-def load_data_from_api():
-    """Fetch fresh data from API"""
-    with st.spinner("Fetching latest adverse event data from ClinicalTrials.gov..."):
-        # Try to load existing CSV first
-        try:
-            df = pd.read_csv('fetched_ae_data.csv')
-            st.success(f"✅ Loaded {len(df)} adverse events from cached data")
-            return df
-        except:
-            st.error("No cached data found. Run fetch_ae_data.py first.")
-            return pd.DataFrame()
+def load_data_from_csv():
+    """Load data from local CSV file"""
+    try:
+        df = pd.read_csv('fetched_ae_data.csv')
+        return df
+    except:
+        return pd.DataFrame()
 
-# Load data based on selection
+# ============================================
+# SIDEBAR - NAVIGATION & CONTROLS
+# ============================================
+with st.sidebar:
+    st.markdown("## 🩺 Safety Monitor")
+    st.markdown("---")
+    
+    # Data source selection
+    st.markdown("### 📊 Data Source")
+    data_source = st.radio(
+        "Select data source",
+        ["Snowflake Database", "Local CSV File"],
+        help="Choose where to load adverse event data from"
+    )
+    
+    st.markdown("---")
+    
+    # Filters
+    st.markdown("### 🔍 Filters")
+    
+    # Seriousness filter
+    seriousness_filter = st.selectbox(
+        "Adverse Event Severity",
+        ["All Events", "Serious Only", "Non-Serious Only"]
+    )
+    
+    st.markdown("---")
+    st.caption(f"🩺 Clinical Trial Safety Monitor v2.0\nLast updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+# ============================================
+# MAIN CONTENT AREA
+# ============================================
+st.markdown('<p class="main-header">🩺 Clinical Trial Adverse Event Safety Monitor</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Real-time pharmacovigilance platform for cancer clinical trials | Powered by ClinicalTrials.gov API + Snowflake</p>', unsafe_allow_html=True)
+
+# ============================================
+# DATA LOADING
+# ============================================
 if data_source == "Snowflake Database":
     df = load_data_from_snowflake()
     if df.empty:
         st.warning("No data in Snowflake. Please load data first using load_data.py")
         st.stop()
-elif data_source == "Upload Your Own Data":
-    uploaded_file = st.file_uploader("Upload CSV file with adverse event data", type=['csv'])
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        st.success(f"✅ Loaded {len(df)} records from uploaded file")
-    else:
-        st.info("Please upload a CSV file containing adverse event data")
-        st.stop()
-else:  # API
-    df = load_data_from_api()
+else:
+    df = load_data_from_csv()
     if df.empty:
-        st.warning("No data available. Run fetch_ae_data.py first.")
+        st.warning("No CSV data found. Please run fetch_ae_data.py first.")
         st.stop()
 
 # Apply filters
 if not df.empty:
-    # Trial filter
-    available_trials = df['trial_id'].unique().tolist() if 'trial_id' in df.columns else []
-    selected_trials = trial_filter_placeholder.multiselect(
-        "Select Trials to Analyze",
-        options=available_trials,
-        default=available_trials[:min(4, len(available_trials))] if available_trials else []
-    )
-    
-    if selected_trials and 'trial_id' in df.columns:
-        df = df[df['trial_id'].isin(selected_trials)]
+    # Column name mapping (handle different naming conventions)
+    trial_col = 'trial_id' if 'trial_id' in df.columns else 'TRIAL_ID'
+    ae_term_col = 'ae_term' if 'ae_term' in df.columns else 'AE_TERM'
+    ae_type_col = 'ae_type' if 'ae_type' in df.columns else 'AE_SEVERITY'
     
     # Seriousness filter
-    if seriousness_filter == "Serious Only" and 'ae_type' in df.columns:
-        df = df[df['ae_type'].str.contains('Serious', case=False, na=False)]
-    elif seriousness_filter == "Non-Serious Only" and 'ae_type' in df.columns:
-        df = df[~df['ae_type'].str.contains('Serious', case=False, na=False)]
+    if seriousness_filter == "Serious Only" and ae_type_col in df.columns:
+        df = df[df[ae_type_col].astype(str).str.contains('Serious', case=False, na=False)]
+    elif seriousness_filter == "Non-Serious Only" and ae_type_col in df.columns:
+        df = df[~df[ae_type_col].astype(str).str.contains('Serious', case=False, na=False)]
 
 # ============================================
-# TABBED INTERFACE (Like your R/Shiny app)
+# TABBED INTERFACE
 # ============================================
-
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Dashboard", 
     "🔬 Signal Detection", 
@@ -208,30 +206,36 @@ with tab1:
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.markdown("""
+            st.markdown(f"""
             <div class="metric-card">
                 <h3 style="margin:0; font-size:0.9rem;">Total AEs</h3>
-                <p style="margin:0; font-size:2rem; font-weight:bold;">{}</p>
+                <p style="margin:0; font-size:2rem; font-weight:bold;">{len(df):,}</p>
             </div>
-            """.format(len(df)), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
         with col2:
-            serious_count = len(df[df['ae_type'].str.contains('Serious', case=False, na=False)]) if 'ae_type' in df.columns else 0
-            st.markdown("""
+            if ae_type_col in df.columns:
+                serious_count = len(df[df[ae_type_col].astype(str).str.contains('Serious', case=False, na=False)])
+            else:
+                serious_count = 0
+            st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                 <h3 style="margin:0; font-size:0.9rem;">Serious AEs</h3>
-                <p style="margin:0; font-size:2rem; font-weight:bold;">{}</p>
+                <p style="margin:0; font-size:2rem; font-weight:bold;">{serious_count:,}</p>
             </div>
-            """.format(serious_count), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
         with col3:
-            unique_trials = df['trial_id'].nunique() if 'trial_id' in df.columns else 0
-            st.markdown("""
+            if trial_col in df.columns:
+                unique_trials = df[trial_col].nunique()
+            else:
+                unique_trials = 0
+            st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                 <h3 style="margin:0; font-size:0.9rem;">Active Trials</h3>
-                <p style="margin:0; font-size:2rem; font-weight:bold;">{}</p>
+                <p style="margin:0; font-size:2rem; font-weight:bold;">{unique_trials}</p>
             </div>
-            """.format(unique_trials), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
         with col4:
             st.markdown("""
@@ -248,8 +252,8 @@ with tab1:
         
         with col1:
             st.subheader("📊 Top 15 Adverse Events")
-            if 'ae_term' in df.columns:
-                top_ae = df['ae_term'].value_counts().head(15)
+            if ae_term_col in df.columns:
+                top_ae = df[ae_term_col].value_counts().head(15)
                 fig = px.bar(
                     x=top_ae.values,
                     y=top_ae.index,
@@ -264,8 +268,10 @@ with tab1:
         
         with col2:
             st.subheader("⚠️ Serious vs Non-Serious")
-            if 'ae_type' in df.columns:
-                serious_counts = df['ae_type'].apply(lambda x: 'Serious' if 'Serious' in str(x) else 'Non-Serious').value_counts()
+            if ae_type_col in df.columns:
+                serious_counts = df[ae_type_col].astype(str).apply(
+                    lambda x: 'Serious' if 'Serious' in x else 'Non-Serious'
+                ).value_counts()
                 fig2 = px.pie(
                     values=serious_counts.values,
                     names=serious_counts.index,
@@ -278,8 +284,8 @@ with tab1:
             
             st.markdown("---")
             st.subheader("🏥 Event Type Distribution")
-            if 'ae_type' in df.columns:
-                event_types = df['ae_type'].value_counts().head(5)
+            if ae_type_col in df.columns:
+                event_types = df[ae_type_col].value_counts().head(5)
                 fig3 = px.bar(
                     x=event_types.index,
                     y=event_types.values,
@@ -289,7 +295,6 @@ with tab1:
                 )
                 fig3.update_layout(height=300, showlegend=False)
                 st.plotly_chart(fig3, use_container_width=True)
-    
     else:
         st.info("No data available. Please check your data source.")
 
@@ -300,16 +305,17 @@ with tab2:
     st.subheader("🔬 Statistical Signal Detection")
     st.markdown("Disproportionality analysis for adverse event signal detection")
     
-    if not df.empty and 'ae_term' in df.columns:
+    if not df.empty and ae_term_col in df.columns:
         # Calculate reporting ratios
-        ae_counts = df['ae_term'].value_counts()
+        ae_counts = df[ae_term_col].value_counts()
         total_events = len(df)
+        expected = total_events / len(ae_counts) if len(ae_counts) > 0 else 1
         
         signal_df = pd.DataFrame({
             'AE_Term': ae_counts.index,
             'Observed_Count': ae_counts.values,
-            'Expected_Rate': total_events / len(ae_counts),
-            'Reporting_Ratio': ae_counts.values / (total_events / len(ae_counts))
+            'Expected_Rate': expected,
+            'Reporting_Ratio': ae_counts.values / expected if expected > 0 else 1
         })
         
         # Flag signals (Reporting Ratio > 2)
@@ -363,12 +369,12 @@ with tab2:
 with tab3:
     st.subheader("🏥 Cross-Trial Adverse Event Comparison")
     
-    if not df.empty and 'trial_id' in df.columns and 'ae_term' in df.columns:
+    if not df.empty and trial_col in df.columns and ae_term_col in df.columns:
         # Create comparison matrix
-        trial_ae_matrix = pd.crosstab(df['ae_term'], df['trial_id'])
+        trial_ae_matrix = pd.crosstab(df[ae_term_col], df[trial_col])
         
         # Top AEs across trials
-        top_ae_list = df['ae_term'].value_counts().head(10).index.tolist()
+        top_ae_list = df[ae_term_col].value_counts().head(10).index.tolist()
         comparison_df = trial_ae_matrix.loc[top_ae_list]
         
         st.markdown("### Top 10 AEs Across Selected Trials")
@@ -385,12 +391,12 @@ with tab3:
         
         # Trial summary
         st.markdown("### Trial Summary Statistics")
-        trial_summary = df.groupby('trial_id').agg({
-            'ae_term': 'count',
-        }).rename(columns={'ae_term': 'Total_AEs'})
+        trial_summary = df.groupby(trial_col).agg({
+            ae_term_col: 'count',
+        }).rename(columns={ae_term_col: 'Total_AEs'})
         
-        if 'ae_type' in df.columns:
-            serious_by_trial = df[df['ae_type'].str.contains('Serious', case=False, na=False)].groupby('trial_id').size()
+        if ae_type_col in df.columns:
+            serious_by_trial = df[df[ae_type_col].astype(str).str.contains('Serious', case=False, na=False)].groupby(trial_col).size()
             trial_summary['Serious_AEs'] = serious_by_trial
             trial_summary['Serious_Percent'] = (trial_summary['Serious_AEs'] / trial_summary['Total_AEs'] * 100).round(1)
         
@@ -415,12 +421,13 @@ with tab4:
         search_term = st.text_input("🔍 Search adverse events", placeholder="nausea, fatigue, etc.")
         
         filtered_df = df.copy()
-        if search_term and 'ae_term' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['ae_term'].str.contains(search_term, case=False, na=False)]
+        if search_term and ae_term_col in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df[ae_term_col].astype(str).str.contains(search_term, case=False, na=False)]
         
         # Pagination
         page_size = st.selectbox("Rows per page", [10, 25, 50, 100])
-        page_number = st.number_input("Page", min_value=1, value=1)
+        total_pages = max(1, (len(filtered_df) + page_size - 1) // page_size)
+        page_number = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
         
         start_idx = (page_number - 1) * page_size
         end_idx = start_idx + page_size
@@ -431,7 +438,7 @@ with tab4:
             height=400
         )
         
-        st.caption(f"Showing {len(filtered_df.iloc[start_idx:end_idx])} of {len(filtered_df)} records")
+        st.caption(f"Showing {len(filtered_df.iloc[start_idx:end_idx])} of {len(filtered_df)} records | Page {page_number} of {total_pages}")
 
 # ============================================
 # TAB 5: SAFETY REPORT
@@ -440,34 +447,38 @@ with tab5:
     st.subheader("📄 Automated Safety Report")
     
     if not df.empty:
-        if st.button("Generate PDF Report", type="primary"):
+        if st.button("Generate Safety Report", type="primary"):
             with st.spinner("Generating safety report..."):
                 # Create summary statistics
                 report_data = {
                     "Report_Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Total_Adverse_Events": len(df),
-                    "Unique_Trials": df['trial_id'].nunique() if 'trial_id' in df.columns else 0,
-                    "Serious_AEs": len(df[df['ae_type'].str.contains('Serious', case=False, na=False)]) if 'ae_type' in df.columns else 0,
-                    "Top_AE": df['ae_term'].mode()[0] if 'ae_term' in df.columns else "N/A",
+                    "Unique_Trials": df[trial_col].nunique() if trial_col in df.columns else 0,
+                    "Serious_AEs": len(df[df[ae_type_col].astype(str).str.contains('Serious', case=False, na=False)]) if ae_type_col in df.columns else 0,
+                    "Top_AE": df[ae_term_col].mode()[0] if ae_term_col in df.columns else "N/A",
                     "Data_Source": "ClinicalTrials.gov API"
                 }
                 
-                st.markdown("## 📊 Safety Monitoring Report")
+                st.markdown("## 📊 Safety Monitoring Report Summary")
                 st.json(report_data)
                 
                 # Create downloadable CSV
                 output = io.BytesIO()
                 df.to_csv(output, index=False)
                 st.download_button(
-                    label="📥 Download Report as CSV",
+                    label="📥 Download Full Report as CSV",
                     data=output.getvalue(),
-                    file_name=f"safety_report_{datetime.now().strftime('%Y%m%d')}.csv",
+                    file_name=f"safety_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv"
                 )
                 
                 st.success("✅ Report generated successfully!")
+    else:
+        st.info("No data available to generate report.")
 
-# Footer
+# ============================================
+# FOOTER
+# ============================================
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666;'>"
