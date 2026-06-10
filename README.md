@@ -83,27 +83,6 @@ clinical\_trial\_pipeline/
 
 
 
-
-\## 🛠️ Installation
-
-
-
-\### Prerequisites
-
-
-
-\- Python 3.8+
-
-\- Snowflake account (free trial available)
-
-\- Git
-
-
-
-\### Step 1: Clone the repository
-
-
-
 ```bash
 
 git clone https://github.com/IndraniChar/clinical\_trial\_safety\_monitor.git
