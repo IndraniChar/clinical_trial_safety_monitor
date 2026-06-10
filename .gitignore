@@ -34,6 +34,9 @@ fetched_ae_data.csv
 .env
 snowflake_config.py
 
+# Streamlit secrets (NEVER commit!)
+.streamlit/secrets.toml
+
 # Logs
 *.log
 spark-warehouse/
@@ -43,5 +46,3 @@ derby.log
 # OS
 .DS_Store
 Thumbs.db
-
-.streamlit/secrets.toml
