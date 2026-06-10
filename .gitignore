@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+trial_env/
+ENV/
+env.bak/
+venv.bak/
+
+# Virtual Environment
+trial_env/
+Lib/
+Scripts/
+Include/
+pyvenv.cfg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files (too large for GitHub)
+*.csv
+*.xlsx
+*.parquet
+fetched_ae_data.csv
+
+# Environment variables
+.env
+snowflake_config.py
+
+# Logs
+*.log
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS
+.DS_Store
+Thumbs.db
